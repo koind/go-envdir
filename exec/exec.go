@@ -1,10 +1,11 @@
 package exec
 
 import (
-	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -15,13 +16,8 @@ func Command(commandName, envDir string) {
 		return
 	}
 
-	err = setEnv(envList)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
 	cmd := exec.Command(commandName)
+	cmd.Env = append(cmd.Env, envList...)
 	err = cmd.Start()
 	if err != nil {
 		fmt.Println(err)
@@ -38,36 +34,25 @@ func Command(commandName, envDir string) {
 	os.Stderr.Write([]byte(err.Error()))
 }
 
-func getEnv(filePath string) (map[string]string, error) {
-	file, err := os.Open(filePath)
+func getEnv(filePath string) ([]string, error) {
+	body, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	envList := make(map[string]string, 10)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		texts := strings.Split(scanner.Text(), "=")
-		if len(texts) >= 2 {
-			envList[texts[0]] = texts[1]
-		}
-	}
+	envList := make([]string, 0, 10)
+	texts := trimSpaces(string(body))
+	slice := strings.Split(texts, " ")
 
-	if err := scanner.Err(); err != nil {
-		return nil, err
+	for _, text := range slice {
+		envList = append(envList, strings.Split(text, "=")...)
 	}
 
 	return envList, nil
 }
 
-func setEnv(evnList map[string]string) error {
-	for key, val := range evnList {
-		err := os.Setenv(key, val)
-		if err != nil {
-			return err
-		}
-	}
+func trimSpaces(text string) string {
+	space := regexp.MustCompile(`\s+`)
 
-	return nil
+	return space.ReplaceAllString(text, " ")
 }
